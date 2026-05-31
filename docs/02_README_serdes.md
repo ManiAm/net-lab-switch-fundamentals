@@ -14,37 +14,43 @@ High-speed serial links use **differential pairs** to carry data. Instead of sen
 
 This matters because at multi-gigabit rates, a ground reference becomes unreliable — power-supply fluctuations, return-path inductance, and nearby switching circuits all corrupt the baseline voltage. A differential pair sidesteps the problem entirely: both conductors travel together through the same PCB traces, connectors, and cables, so any external interference — electromagnetic coupling, power-rail bounce, thermal noise — affects both wires equally and cancels out when the receiver takes the difference.
 
-The result is superior noise immunity (enabling reliable signaling at 25–100+ Gb/s), lower radiated emissions (the equal-and-opposite currents cancel each other's far-field radiation), and no dependence on a clean shared ground between transmitter and receiver.
+The result is superior noise immunity (enabling reliable signaling at 25–100+ Gb/s), lower radiated emissions (the equal-and-opposite currents cancel each other's far-field radiation), and greatly reduced dependence on a clean shared ground between transmitter and receiver.
 
 ## SerDes (Serializer / Deserializer)
 
 A **SerDes** is the analog/mixed-signal circuit block on the NPU that performs this parallel-to-serial (and serial-to-parallel) conversion. Every high-speed port on a switch ASIC is driven by one or more SerDes circuits.
 
-- **Transmit (Serializer):** Converts wide parallel data from the ASIC's internal fabric into a high-speed serial bitstream, encodes and shapes it, and drives it onto a differential pair (TX+ / TX−).
+- **Transmit (Serializer):** Accepts parallel data from the PCS (Physical Coding Sublayer), converts it into a high-speed serial bitstream, shapes the waveform for the channel, and drives it onto a differential pair (TX+ / TX−).
 
-- **Receive (Deserializer):** Accepts the incoming serial bitstream from a differential pair (RX+ / RX−), recovers and decodes it, and reconstructs the original parallel data for the ASIC's internal logic.
+- **Receive (Deserializer):** Accepts the incoming serial bitstream from a differential pair (RX+ / RX−), recovers the clock, equalizes the signal, and reconstructs the parallel data for the PCS.
 
-The diagram below shows the internal stages of a SerDes:
+The diagram below shows the data path from MAC to wire, with the SerDes IP boundary marked:
 
-<img src="../pics/serdes_full.png" alt="SerDes block diagram" width="800">
+<img src="../pics/serdes_full.png" alt="SerDes block diagram" width="900">
 
 On transmit:
 
-    ASIC → Block Encoding → Serializer → Line Coding → TX FIR → Driver → TX+/TX−
+    MAC (FMAC) → Block Encoding → FEC Encoder → Serializer → Line Coding → TX FIR → Driver → TX+/TX−
+                 └─────── PCS / FEC ───────┘     └──────────── SerDes IP ────────────────┘
 
 On receive:
 
-    RX+/RX− → CTLE → CDR → Sampler → DFE → Deserializer → Decoder → ASIC
+    RX+/RX− → CTLE → DFE → Sampler/CDR → Deserializer → FEC Decoder → Decoder → MAC (FMAC)
+              └──────────── SerDes IP ──────────────┘   └───── PCS / FEC ────┘
 
-On the transmit side, **block encoding** (e.g., 64b/66b with scrambling) adds framing, DC balance, and control characters to the parallel data. The **serializer** converts the wide parallel word into a single high-speed serial bitstream. **Line coding** maps serial bits to voltage levels — two levels for NRZ, four for PAM4. The **TX FIR** filter pre-shapes the waveform to compensate for predictable channel loss. The **driver** pushes the final signal onto the differential pair.
+Three distinct blocks handle successive stages of the pipeline:
 
-On the receive side, **CTLE** boosts high frequencies attenuated by the channel, partially restoring the signal so downstream stages can recover the data. **CDR** recovers the clock embedded in the data transitions. The **sampler** captures the signal at the optimal point using that clock. **DFE** cancels residual inter-symbol interference using previous decisions. The **deserializer** converts the recovered serial bitstream back into a wide parallel word. The **decoder** reverses block encoding — descrambling, removing sync headers, and extracting control characters — to recover the original data.
+**MAC (FMAC)** — the digital interface to the switch forwarding pipeline. It performs frame-level operations (CRC, preamble, flow control) and presents parallel data to the PCS.
 
-> The diagram omits FEC encoding, which sits between block encoding and the serializer on transmit, and between the deserializer and decoder on receive. For a detailed discussion of encoding stages and FEC, see [Digital Signal Fundamentals](03_signal_basics.md). For equalization and link training, see [Link Equalization](04_signal_training.md).
+**PCS / FEC** — digital logic that prepares data for serial transmission. On transmit, **block encoding** (64b/66b with scrambling) adds framing, statistical DC balance, and control characters, then the **FEC encoder** adds redundancy for error correction. On receive, the **FEC decoder** corrects bit errors introduced by the channel, then the **decoder** reverses block encoding — descrambling, removing sync headers, and extracting control characters — to recover the original data.
+
+**SerDes IP** — On transmit, the **serializer** converts the wide parallel word into a single high-speed serial bitstream, **line coding** maps bits to voltage levels (two for NRZ, four for PAM4), the **TX FIR** filter pre-shapes the waveform to compensate for predictable channel loss, and the **driver** pushes the final signal onto the differential pair. On receive, **CTLE** boosts high frequencies attenuated by the channel, **DFE** cancels residual inter-symbol interference by subtracting the contribution of previously decided symbols from the incoming signal, the **sampler** captures the equalized signal at the optimal point using a clock recovered by the **CDR** (which runs as a feedback loop alongside the sampler, extracting timing from data transitions), and the **deserializer** converts the recovered serial bitstream back into a wide parallel word.
+
+> For a discussion of encoding stages and FEC, see [Digital Signal Fundamentals](03_signal_basics.md). For equalization and link training, see [Link Equalization](04_signal_training.md).
 
 ## SerDes Lanes
 
-Each SerDes instance operates independently and constitutes one **lane** — four conductors in total: a TX differential pair (TX+/TX−) carrying data outbound and an RX differential pair (RX+/RX−) carrying data inbound, simultaneously. A 25G lane means 25 Gb/s in each direction; the per-lane rate always refers to one direction.
+Each SerDes instance operates independently and constitutes one **lane** — a TX differential pair and an RX differential pair operating simultaneously (four conductors total). A 25G lane means 25 Gb/s in each direction; the per-lane rate always refers to one direction.
 
 ## SerDes Generations (OIF CEI)
 
@@ -130,7 +136,7 @@ The following example shows the same 4-lane port macro (25G NRZ SerDes) configur
 
 - Within a single port macro, all lanes typically must operate at the same base signaling rate. Mixed-rate lanes within one cage are generally not supported.
 
-- Breakout changes require the physical cabling to match. A breakout cable (fan-out cable) splits the high-density connector into multiple lower-density connectors — for example, one QSFP28 to four SFP28, or one OSFP to eight QSFP28.
+- Breakout changes require the physical cabling to match. A breakout cable (fan-out cable) splits the high-density connector into multiple lower-density connectors — for example, one QSFP28 to four SFP28, or one QSFP-DD to four QSFP56.
 
 - The total aggregate bandwidth of the switch does not change under breakout. Lanes are redistributed, not added.
 

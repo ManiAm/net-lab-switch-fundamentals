@@ -269,7 +269,7 @@ Block encoding, FEC encoding, and the serializer operate in the digital domain. 
 
 On receive, the reverse occurs:
 
-    Wire → CTLE → CDR → Sampler → DFE → Deserializer → FEC decoding → Block decoding → Data
+    Wire → CTLE → DFE → Sampler/CDR → Deserializer → FEC decoding → Block decoding → Data
 
 ### Encoding Combinations by Ethernet Generation
 
