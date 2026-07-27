@@ -46,7 +46,7 @@ Three distinct blocks handle successive stages of the pipeline:
 
 **SerDes IP** — On transmit, the **serializer** converts the wide parallel word into a single high-speed serial bitstream, **line coding** maps bits to voltage levels (two for NRZ, four for PAM4), the **TX FIR** filter pre-shapes the waveform to compensate for predictable channel loss, and the **driver** pushes the final signal onto the differential pair. On receive, **CTLE** boosts high frequencies attenuated by the channel, **DFE** cancels residual inter-symbol interference by subtracting the contribution of previously decided symbols from the incoming signal, the **sampler** captures the equalized signal at the optimal point using a clock recovered by the **CDR** (which runs as a feedback loop alongside the sampler, extracting timing from data transitions), and the **deserializer** converts the recovered serial bitstream back into a wide parallel word.
 
-> For a discussion of encoding stages and FEC, see [Digital Signal Fundamentals](03_signal_basics.md). For equalization and link training, see [Link Equalization](04_signal_training.md).
+> For a discussion of encoding stages and FEC, see [Digital Signal Fundamentals](04_signal_basics.md). For equalization and link training, see [Link Equalization](05_signal_training.md).
 
 ## SerDes Lanes
 

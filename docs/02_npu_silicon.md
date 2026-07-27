@@ -1,71 +1,7 @@
 
-# Switch Architecture
+# NPU Silicon
 
-This document provides a high-level overview of how network switches are designed internally: the separation between the control plane and the data plane, how packets traverse the switch, and why specialized forwarding hardware (NPUs) is used alongside — and sometimes instead of — general-purpose CPUs. These concepts apply to any modern data center switch, not just a specific vendor or model.
-
-
-## Control Plane and Data Plane
-
-Every network switch operates across two distinct processing domains:
-
-- **Control plane** — The software-driven domain. A general-purpose CPU runs the network operating system, executes routing protocols (BGP, OSPF), negotiates protocol adjacencies, and computes forwarding decisions. It handles complex but infrequent tasks.
-
-- **Data plane** — The hardware-driven domain. A purpose-built chip called a **network processing unit (NPU)** performs the actual forwarding of packets at wire speed. In the networking industry, NPUs are also referred to as switching ASICs, forwarding ASICs, or merchant silicon (when sold by a chip vendor to multiple switch manufacturers). The NPU does not compute routes or run software — it executes pre-programmed forwarding rules that the control plane installed.
-
-<img src="../pics/switch-planes.png" alt="High-level switch architecture" width="700">
-
-This division is what allows a switch with a modest embedded processor to forward terabits per second of traffic: the CPU computes a routing decision once (e.g., BGP best path) and programs it into the NPU, which then handles all matching packets autonomously without further CPU involvement.
-
-| Domain        | Component            | Role                                                   |
-| ------------- | -------------------- | ------------------------------------------------------ |
-| Data plane    | NPU (switching ASIC) | Forwards packets at wire speed across all ports        |
-| Control plane | Management CPU       | Runs the NOS, routing protocols, and programs the NPU  |
-
-## Why Specialized Hardware
-
-A general-purpose CPU processes instructions sequentially and is optimized for flexibility: branch prediction, speculative execution, caches, and complex instruction sets. These features make CPUs ideal for control-plane tasks but unsuitable for data-plane forwarding at scale.
-
-Consider the math for 100G Ethernet. At minimum-size packets (64 bytes), a single 100G port must process approximately **148.8 million packets per second**. A 32-port 100G switch must handle up to **4.76 billion packets per second** across all ports simultaneously. Each packet requires parsing headers, looking up forwarding tables, applying ACLs, updating counters, and queuing for output — all within a few hundred nanoseconds. No general-purpose CPU can sustain this rate.
-
-NPUs solve this by implementing the forwarding logic directly in hardware:
-
-- **Fixed-function pipelines** process packets in parallel across all ports simultaneously, rather than sequentially on a single instruction stream.
-- **On-chip forwarding tables** (TCAM and hash-based) perform lookups in a single clock cycle, rather than traversing software data structures in memory.
-- **Hardware schedulers and queuing engines** manage traffic shaping, priority, and congestion at wire speed without CPU intervention.
-- **Integrated SerDes** convert between the chip's internal bus and the high-speed electrical signals on each port, eliminating the need for external PHY chips at these speeds.
-
-The trade-off is flexibility: an NPU's forwarding behavior is defined by its pipeline design at fabrication time. It can only perform the operations its silicon was built to support. This is why different NPU families exist — Broadcom's Tomahawk optimizes for raw bandwidth, while Trident optimizes for feature depth and programmability (see the Broadcom Switching ASIC Generations section below).
-
-
-## The Transit Path
-
-A forwarded packet makes a three-part journey through the data plane:
-
-- **Ingress** — The physical port where a packet enters the switch. The NPU's forwarding engine immediately parses the packet headers to determine the destination.
-
-- **Switch fabric** — The high-speed internal crossbar that connects all ports. It transports the packet from the ingress port to the correct egress port. In single-chip designs (such as the Broadcom Tomahawk), the crossbar is integrated into the ASIC itself.
-
-- **Egress** — The physical port where the packet leaves the switch toward its next hop.
-
-A physical port operates as both ingress and egress simultaneously. In full-duplex mode, a 100G port can receive 100 Gbps and transmit 100 Gbps at the same time without interference. This is why switch throughput is sometimes quoted as double the port-speed sum (e.g., 6.4 Tbps full-duplex for a 3.2 Tbps switch).
-
-## Traffic Types
-
-Not all traffic follows the same path through the switch:
-
-- **Data traffic** — Standard forwarded traffic (user applications, storage, compute). This is the vast majority of packets. Data traffic enters at ingress, crosses the switch fabric, and exits at egress without ever touching the CPU. This ASIC-only journey is called the **fast path**.
-
-- **Control traffic** — Protocol traffic from other network devices (BGP updates, OSPF hellos, LLDP, ARP). These packets are intercepted by the NPU and diverted up to the control plane for software processing.
-
-- **Management traffic** — Administrative sessions directed at the switch itself (SSH, SNMP, REST API). These also require CPU processing.
-
-Control and management traffic follow the **slow path**: the NPU traps the packet and sends it to the CPU for software processing. The slow path is orders of magnitude slower than the fast path but handles only a tiny fraction of total traffic.
-
-## Control Plane Policing (CoPP)
-
-The CPU is a slow, shared resource receiving trapped packets from all ports. A flood of ARP requests or ICMP pings does not affect the NPU (it can trap millions per second), but every trapped packet lands on the CPU. Without rate-limiting, a burst of control traffic — malicious or accidental — can starve routing protocols of CPU cycles and destabilize the entire switch.
-
-CoPP protects the CPU by rate-limiting the trap path. Trapped packets are classified into categories (BGP, ARP, ICMP, SSH, etc.), and each category is assigned its own rate limit. Packets within the allowed rate are delivered to the CPU; packets exceeding the rate are dropped before reaching it. CoPP sits at the boundary between the fast path and the slow path — the same position shown in the architecture diagram above.
+The [previous document](01_switch_architecture.md) introduced the NPU as the purpose-built chip that forwards packets at wire speed in the data plane. This document examines the NPU silicon itself: which vendors produce these chips, how Broadcom's switching ASIC families have evolved across generations, and where software-based forwarding (VPP/DPDK) fits as an alternative to dedicated hardware.
 
 ## Major NPU Vendors
 

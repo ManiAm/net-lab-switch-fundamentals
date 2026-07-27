@@ -14,11 +14,11 @@ They solve the same problem from opposite ends. Together, TX and RX equalization
 
 <img src="../pics/serdes_path.png" alt="segment" width="650">
 
-> Encoding, FEC, and the full stage pipeline are covered in [Digital Signal Fundamentals](03_signal_basics.md#encoding-in-serdes).
+> Encoding, FEC, and the full stage pipeline are covered in [Digital Signal Fundamentals](04_signal_basics.md#encoding-in-serdes).
 
 After encoding and serialization, the serial bitstream passes through **TX equalization**, typically implemented as a TX FIR (feed-forward) filter. TX equalization intentionally reshapes the transmitted waveform to pre-compensate for predictable channel losses — especially high-frequency attenuation — so that the signal arrives at the receiver with better edge sharpness and timing margin.
 
-The signal then traverses the physical channel (PCB traces, connectors, cables). As described in [Signal Distortion](03_signal_basics.md#signal-distortion), the channel attenuates different frequencies by different amounts and causes inter-symbol interference. Because this distortion depends on the specific physical link, it cannot be fully eliminated at the transmitter alone.
+The signal then traverses the physical channel (PCB traces, connectors, cables). As described in [Signal Distortion](04_signal_basics.md#signal-distortion), the channel attenuates different frequencies by different amounts and causes inter-symbol interference. Because this distortion depends on the specific physical link, it cannot be fully eliminated at the transmitter alone.
 
 The receiver applies its own **RX equalization**, typically a combination of CTLE (Continuous-Time Linear Equalizer) and DFE (Decision Feedback Equalizer). CTLE boosts high-frequency components in the analog signal to counteract channel loss. DFE digitally subtracts residual interference from previously detected symbols, reducing ISI without amplifying noise.
 
