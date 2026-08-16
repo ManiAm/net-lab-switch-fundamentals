@@ -3,7 +3,7 @@
 
 ## Digital-to-Digital Conversion
 
-Digital-to-digital conversion is the process of representing **digital data** (0s and 1s) as a **digital signal** (discrete voltage levels on a physical medium). In summary:
+Digital-to-digital conversion is the process of representing **digital data** (0s and 1s) as a **digital signal** (discrete voltage levels on a physical medium). That is:
 
 - **Data** — what we want to send (bits: 0 and 1)
 - **Signal** — how we send it (voltage or current over time)
@@ -22,7 +22,9 @@ The ratio between data elements and signal elements depends on the [line coding 
 
 ## Data Rate vs Signal Rate
 
-**Data rate** (bit rate) is the number of data bits transmitted per second, measured in bps. When a link is described as "100 Gb/s," this refers to data rate. **Signal rate** (baud rate) is the number of signal elements transmitted per second, measured in baud. It reflects how fast the physical signal changes on the wire. The two are related by:
+**Data rate** (bit rate) is the number of data bits transmitted per second, measured in bps. When a link is described as "100 Gb/s," this refers to data rate. **Signal rate** (baud rate) is the number of signal elements transmitted per second, measured in baud. It reflects how fast the physical signal changes on the wire.
+
+The two are related by:
 
     signal rate = data rate ÷ (bits per signal element)
 
@@ -32,7 +34,9 @@ This distinction has direct physical consequences. A higher signal rate demands 
 
 ## Line Coding Schemes
 
-A line coding scheme defines the rules for mapping a stream of data bits into a signal waveform (specific voltage levels and transitions over time) so the receiver can reliably recover the data. Two properties of line coding schemes are important: DC component and clock recovery.
+A line coding scheme defines the rules for mapping a stream of data bits into a signal waveform (specific voltage levels and transitions over time) so the receiver can reliably recover the data.
+
+Two properties of any line coding scheme are critical for reliable high-speed communication: **DC component** and **clock recovery**. These determine whether a scheme is suitable for a given link technology.
 
 ### DC Component
 
@@ -42,7 +46,9 @@ A scheme with "None" DC component guarantees zero average voltage over every cod
 
 ### Clock Recovery
 
-In most serial links, no separate clock signal is sent alongside the data. The receiver extracts timing from the data signal itself — a process called **clock recovery**. A CDR (Clock and Data Recovery) circuit monitors signal transitions and uses them to lock a local oscillator to the transmitter's symbol rate. Clock recovery quality depends on transition frequency. Schemes with guaranteed transitions every bit period (such as Manchester) provide excellent clock recovery.
+In most serial links, no separate clock signal is sent alongside the data. The receiver must extract timing from the data signal itself — a process called **clock recovery**. A **CDR** (Clock and Data Recovery) circuit monitors signal transitions and uses them to synchronize a local clock to the transmitter's symbol rate.
+
+Clock recovery quality depends on how often the signal transitions between levels. Schemes with guaranteed transitions every bit period (such as Manchester) provide excellent clock recovery. Schemes that can produce long runs without transitions (such as NRZ) make clock recovery difficult during those runs.
 
 ### Comparison Table
 
@@ -71,7 +77,7 @@ NRZ is a family of line coding schemes in which the signal stays at a constant l
 
 **Polar NRZ-I** (Invert) encodes data in *transitions* rather than levels: a 1 causes a polarity inversion at the start of the bit period, while a 0 keeps the signal unchanged. This means a run of 1s produces a transition every bit period, giving NRZ-I better clock recovery than NRZ-L for 1-heavy data. However, a run of 0s still produces no transitions, so clock recovery can degrade on 0-heavy patterns.
 
-In modern high-speed serial links, "NRZ" almost universally refers to Polar NRZ-L. Its simplicity makes it power-efficient, and with only two levels the full voltage swing separates 0 from 1, maximizing noise margin. Its weaknesses — poor clock recovery during long identical-bit runs and possible DC imbalance — are mitigated by [block encoding](#block-encoding-pcs-encoding) and scrambling rather than by changing the line code itself.
+In modern high-speed serial links, "NRZ" almost universally refers to Polar NRZ-L. Its simplicity makes it power-efficient, and with only two levels the full voltage swing separates 0 from 1, maximizing noise margin. Its weaknesses — poor clock recovery during long identical-bit runs and possible DC imbalance — are mitigated by [block encoding](#block-encoding) and scrambling rather than by changing the line code itself.
 
 ### PAM4 (Pulse Amplitude Modulation, 4-Level)
 
@@ -88,7 +94,7 @@ PAM4 sidesteps this limit by encoding more data into each symbol rather than tra
 
 <img src="../pics/nrz_pam4.png" alt="NRZ vs PAM4 signal comparison" width="650">
 
-For example, a 112-Gbaud PAM4 signal delivers 224 Gb/s of raw data — twice what NRZ achieves at the same baud rate.
+For example, a 112 GBd PAM4 signal delivers 224 Gb/s of raw data — twice what NRZ achieves at the same baud rate.
 
 The trade-off is noise margin: packing four levels into the same voltage swing means each level is separated by only one-third the distance of NRZ's two levels, making PAM4 significantly more susceptible to noise and requiring stronger error correction (see [FEC](#forward-error-correction-fec)).
 
@@ -100,7 +106,7 @@ This matters because PAM4's tight level spacing makes level-to-level confusion t
 
 ## Block Encoding
 
-Line coding defines how bits map to voltage levels on the wire. But before line coding is applied, the raw data stream must be prepared for reliable transmission. This preparation — called **block encoding** — is a fixed-ratio transformation applied at the Physical Coding Sublayer (PCS) that converts blocks of data bits into slightly larger coded blocks.
+Line coding (described above) defines how bits map to voltage levels on the wire. However, in the actual data path, raw data is first prepared for reliable transmission *before* line coding is applied. This preparation step — called **block encoding** — is a fixed-ratio transformation applied at the Physical Coding Sublayer (PCS) that converts blocks of data bits into slightly larger coded blocks. It is explained here, after line coding, because understanding line coding's limitations (DC imbalance, poor clock recovery during long identical-bit runs) motivates why block encoding exists.
 
 Block encoding solves problems that line coding alone cannot:
 
@@ -152,6 +158,8 @@ Both layers are necessary: block encoding prepares the bitstream for reliable tr
 
 ## Signal Distortion
 
+With line coding and block encoding established, we can examine what happens to the signal once it is on the wire.
+
 Signal distortion occurs when the waveform that arrives at the receiver differs in shape from the waveform that was transmitted. The signal is not lost — it is altered enough that the receiver can no longer reliably determine the intended values.
 
 The transmission channel (wire, trace, cable) behaves as an analog system that can attenuate, delay, reshape, and reflect parts of the signal. Sharp transitions become rounded, voltage levels shift, and energy from one symbol may overlap with the next.
@@ -199,15 +207,15 @@ The following shows the eye diagram for an NRZ (two-level) signal:
 
 Together, eye height and eye width define the **eye opening** — the clear region in the center of the diagram where the receiver can sample safely. When the eye opening is large, communication is stable. When the eye closes — due to any of the distortion mechanisms above — voltage and timing margins shrink, the receiver starts misdetecting symbols, bit errors increase, and at higher layers this manifests as link flapping, retries, or instability.
 
-The impact of modulation on eye quality is visible when comparing NRZ and PAM4. NRZ produces a single wide eye opening between its two voltage levels. PAM4 splits the same voltage swing across four levels, creating three stacked eyes each approximately one-third the height — significantly reducing voltage margin per symbol:
+The impact of modulation on eye quality is visible when comparing NRZ and PAM4. NRZ produces a single wide eye opening between its two voltage levels. PAM4 produces three stacked eyes (one between each pair of adjacent levels), each approximately one-third the height of the NRZ eye:
 
 <img src="../pics/nrz_pam4_2.png" alt="NRZ vs PAM4 eye comparison" width="650">
 
 ## BER (Bit Error Rate)
 
-A bit error occurs when the receiver misinterprets a transmitted bit — a 1 is decoded as 0, or vice versa. This is the direct consequence of the signal distortion described above.
+A bit error occurs when the receiver misinterprets a transmitted bit — a 1 is decoded as 0, or vice versa. Bit errors are the direct consequence of the signal distortion mechanisms described above.
 
-**BER** (Bit Error Rate) is the ratio of incorrectly received bits to total bits transmitted. A BER of 1e-12 means one bit error per trillion bits sent. In data-center environments, BER at this level or better is typically required for a link to be considered reliable.
+**BER** (Bit Error Rate) is the ratio of incorrectly received bits to total bits transmitted. A BER of 10⁻¹² means one bit error per trillion bits sent. In data-center environments, BER at this level or better is typically required for a link to be considered reliable.
 
 The eye diagram and BER are complementary: the eye diagram *predicts* how likely errors are (by showing voltage and timing margin), while BER *measures* how many errors are actually occurring.
 
@@ -217,7 +225,7 @@ The eye diagram and BER are complementary: the eye diagram *predicts* how likely
 
 A SerDes lane transmits billions of symbols per second over copper or fiber. At these frequencies, insertion loss, crosstalk, impedance discontinuities, and thermal noise degrade the received signal, causing a fraction of bits to be decoded incorrectly.
 
-For a link to be usable by Ethernet, the delivered BER must be below 10⁻¹² (fewer than one error per trillion bits). Without assistance, high-speed links routinely operate at raw BERs of 10⁻⁶ to 10⁻⁴ — orders of magnitude worse than the target.
+For a link to be usable by Ethernet, the delivered BER must be below 10⁻¹². Without assistance, high-speed links routinely operate at raw BERs between 10⁻⁸ and 10⁻³ depending on signaling and channel quality — orders of magnitude worse than the target.
 
 ### What FEC Is
 
@@ -225,13 +233,39 @@ Forward Error Correction is a coding scheme applied by the transmitter that adds
 
 The trade-off is latency: the receiver must buffer an entire FEC codeword before it can decode and correct errors. Stronger FEC codes correct more errors but add more latency.
 
+### Pre-FEC BER vs Post-FEC BER
+
+Two BER measurements characterize a FEC-enabled link:
+
+- **Pre-FEC BER** — the raw bit error rate measured at the receiver *before* the FEC decoder processes the data. This reflects the true quality of the physical channel (cable, connector, optics, equalization).
+
+- **Post-FEC BER** — the residual bit error rate *after* FEC correction. This is what upper layers (MAC, IP, application) actually experience.
+
+```
+           TX Side                   Channel                    RX Side
+  ┌──────────┐  ┌───────────┐  ┌───────────────────┐  ┌───────────┐  ┌──────────┐
+  │   Data   │─→│    FEC    │─→│  Physical Link    │─→│    FEC    │─→│   Data   │
+  │  Source  │  │  Encoder  │  │ (noise, loss,     │  │  Decoder  │  │   Sink   │
+  └──────────┘  └───────────┘  │  crosstalk)       │  └───────────┘  └──────────┘
+                               └───────────────────┘
+                                                     ▲              ▲
+                                                     │              │
+                                                Pre-FEC BER    Post-FEC BER
+                                                (raw errors,   (residual errors,
+                                                 e.g. 2×10⁻⁴)  e.g. <10⁻¹⁵)
+```
+
+> For where FEC sits within the full SerDes transmit and receive pipeline, see the [SerDes block diagram](../pics/serdes_full.png).
+
+The FEC decoder bridges the gap between these two numbers. For example, a PAM4 link may have a pre-FEC BER of 2×10⁻⁴ (roughly 1 error in every 5,000 bits) yet deliver a post-FEC BER below 10⁻¹⁵ (effectively error-free). The link is healthy as long as the pre-FEC BER stays within the FEC correction capability. If pre-FEC BER exceeds that limit, uncorrectable errors appear and the link fails.
+
 ### FEC Requirements by Signaling
 
 Whether FEC is optional or mandatory depends on the signaling scheme and its noise margin:
 
 - **NRZ at 10G–25G:** The wide voltage margin between two levels keeps raw BER relatively low (10⁻⁸ to 10⁻⁵ depending on cable type and length). Short, high-quality links may achieve 10⁻¹² without FEC. Longer or lossier links need FEC to close the gap.
 
-- **PAM4 at 50G+ per lane:** As described in the [PAM4](#pam4-pulse-amplitude-modulation-4-level) section, four levels within the same voltage swing reduce inter-level spacing by ~3x, cutting noise margin by approximately 9.5 dB. Raw BER is inherently in the 10⁻⁴ to 10⁻³ range — completely unusable without FEC. There is no "FEC off" mode that produces a working link.
+- **PAM4 at 50G+ per lane:** As described in the [PAM4](#pam4-pulse-amplitude-modulation-4-level) section, the reduced inter-level spacing (~9.5 dB less noise margin than NRZ) means raw BER is inherently in the 10⁻⁴ to 10⁻³ range — completely unusable without FEC. There is no "FEC off" mode that produces a working link.
 
 | Signaling | Lane Rate | Noise Margin | FEC Requirement                             |
 | --------- | --------- | ------------ | ------------------------------------------- |
@@ -259,15 +293,59 @@ For NRZ links, the choice between FC-FEC, RS-FEC, or no FEC depends on channel q
 
 FEC negotiation does not exist on most Ethernet links. Both ends must be statically configured to the same FEC mode. If one end expects RS-FEC and the other expects no-FEC (or FC-FEC), the link stays down — the receiver cannot frame-lock on the incoming data. There is no graceful fallback and typically no useful error message; the port simply shows `Oper: down`.
 
+### FEC Symbol Error Histogram (Bins)
+
+This section applies to RS-FEC only. FC-FEC corrects isolated single-bit errors and has no concept of "symbol error count per codeword," so bins are not applicable to it.
+
+When RS-FEC decodes a codeword, it determines exactly how many symbol errors were present and corrects them. Rather than tracking every individual count, the hardware groups these correction counts into **logarithmic buckets called bins**. This histogram is not defined by IEEE 802.3 (which only mandates aggregate corrected/uncorrectable counters); it is an ASIC vendor diagnostic feature, most commonly seen in Broadcom's SDK. Each bin covers a range of symbol errors per codeword:
+
+| Bin | Symbol Errors per Codeword |
+| --- | -------------------------- |
+| 0   | 0 (no correction needed)   |
+| 1   | 1                          |
+| 2   | 2–3                        |
+| 3   | 4–7                        |
+| 4   | 8–15                       |
+| 5   | 16–31                      |
+| 6   | 32–63                      |
+| 7   | 64–127                     |
+| 8   | 128–255                    |
+| 9   | 256–511                    |
+| 10  | 512–1023                   |
+| 11  | 1024–2047                  |
+| 12  | 2048–4095                  |
+| 13  | 4096–8191                  |
+| 14  | 8192–16383                 |
+| 15  | ≥ 16384 (or uncorrectable) |
+
+Each bin's range is double the previous bin's. This logarithmic scale compresses the wide range of possible symbol error counts into a compact set of ~16 hardware counters.
+
+**Reading the histogram:** Over a measurement window, the FEC engine increments the counter for the appropriate bin each time it decodes a codeword. After the window closes, the **last nonzero bin** (the highest bin with a nonzero count) indicates the worst error burst that FEC had to correct. A codeword that lands in a high bin was barely correctable — one more symbol error would have made it uncorrectable.
+
+**Why bins matter for link health:**
+
+- **Low bins (0–5):** The link has comfortable margin. FEC is correcting small, infrequent error bursts with little effort.
+- **Mid bins (6–9):** The link is operational but margin is reduced. Environmental changes (temperature drift, vibration, aging) could push it toward failure.
+- **High bins (10–12+):** The link is close to the FEC correction limit. Uncorrectable codewords are likely within hours to days depending on error rate trends.
+- **Bin 15 / uncorrectable:** The FEC engine cannot correct the codeword. This results in corrupted data reaching upper layers — CRC errors, packet drops, or application failures.
+
+**Acceptance criteria based on bins:** Production qualification tests commonly define pass/fail in terms of bins. A typical requirement is:
+
+> Run traffic for N hours. The last nonzero bin must be ≤ bin X, with zero uncorrectable codewords and zero packet drops.
+
+For example, a customer might require: *2×400G traffic for 2 hours, last nonzero bin ≤ 9, 0 uncorrectable errors, 0 packet drops.* If the link reaches bin 12 within 24 hours, extrapolation suggests uncorrectable codewords will appear within 10–12 hours — a failing result.
+
+**Time-to-uncorrectable extrapolation:** If the FEC symbol error rate is trending upward (due to thermal drift, laser aging, or connector degradation), the bin distribution shifts toward higher numbers over time. By measuring the rate of bin progression, engineers can estimate how long until error bursts exceed the FEC correction capability. A link that reaches bin 9 in 2 hours may reach bin 12 in 12 hours and produce uncorrectable errors shortly after. This extrapolation informs both pass/fail decisions and preventive maintenance schedules.
+
 ## Encoding in SerDes
 
-With line coding, block encoding, and FEC covered, we can now describe how modern SerDes links combine them. In a SerDes transmit path, the data passes through these stages before reaching the wire:
+With line coding, block encoding, and FEC covered individually, we can now describe how modern SerDes links combine all three. In a SerDes transmit path, data passes through these stages before reaching the wire:
 
     Data → Block encoding (64b/66b + scrambling) → FEC encoding → Serializer → Line coding (NRZ or PAM4) → TX FIR → Driver → Wire
 
-Block encoding, FEC encoding, and the serializer operate in the digital domain. The serializer converts the wide parallel word into a single high-speed serial bitstream. From that point the analog stages take over: line coding maps bits to voltage levels, the TX FIR pre-compensates for channel loss, and the driver pushes the signal onto the differential pair.
+Block encoding, FEC encoding, and the serializer operate in the digital domain. The **serializer** converts the wide parallel data word into a single high-speed serial bitstream. From that point the analog stages take over: line coding maps bits to voltage levels, the TX FIR (a pre-emphasis filter) pre-compensates for expected channel loss, and the driver pushes the signal onto the differential pair (two complementary conductors carrying the signal).
 
-On receive, the reverse occurs:
+On receive, the reverse occurs. The analog equalizers (CTLE and DFE) compensate for channel loss, the CDR and sampler recover bits from the signal, and the digital stages decode FEC and block encoding:
 
     Wire → CTLE → DFE → Sampler/CDR → Deserializer → FEC decoding → Block decoding → Data
 
@@ -292,7 +370,7 @@ Two patterns are visible in this table:
 
 **8b/10b was replaced by 64b/66b at 10G.** At 1GbE, the 20% overhead of 8b/10b is tolerable (1.25 GBd on the wire for 1 Gbps of data). At 10 Gbps and above, wasting 20% of the channel bandwidth is not acceptable. 64b/66b reduces encoding overhead to 3.125% and has been used for every Ethernet generation since.
 
-**NRZ was replaced by PAM4 at 50G per lane.** As described in the [NRZ](#nrz-non-return-to-zero) and [PAM4](#pam4-pulse-amplitude-modulation-4-level) sections, NRZ hits a practical channel-loss ceiling around 25–28 GBd. PAM4 doubles the data rate per lane without increasing the baud rate — a 50G PAM4 lane runs at roughly the same baud rate as a 25G NRZ lane. The trade-off is reduced noise margin, which makes [FEC](#forward-error-correction-fec) mandatory for all PAM4 links.
+**NRZ was replaced by PAM4 at 50G per lane.** As described in the [NRZ](#nrz-non-return-to-zero) and [PAM4](#pam4-pulse-amplitude-modulation-4-level) sections, NRZ hits a practical channel-loss ceiling around 25–28 GBd. PAM4 doubles the data rate per lane without increasing the baud rate — a 50G PAM4 lane runs at roughly the same baud rate as a 25G NRZ lane — at the cost of reduced noise margin, which makes [FEC](#forward-error-correction-fec) mandatory.
 
 ### Line Rate Calculation
 
